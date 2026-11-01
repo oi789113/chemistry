@@ -13,7 +13,7 @@ export interface Vessel {
   id: string; kind: InstrumentKind; x: number; y: number
   contents: Portion[]; volumeMl: number; temperature: number
   heating: boolean; stirring: boolean; supported: boolean; stoppered: boolean
-  targetTemperature: number; reacted: Record<string, number>; evaporatedMl: number
+  targetTemperature: number; reacted: Record<string, number>; reactionStarted?: Record<string,number>; evaporatedMl: number
 }
 export interface Connection { from: string; to: string }
 export interface ReactionRule {

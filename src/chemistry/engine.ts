@@ -49,7 +49,7 @@ export function describeSystem(v: Vessel | undefined, sim: Simulation): string {
   if (candidates.length) return blockedReason(v,sim,candidates[0]) ?? '反应条件已满足。播放后按用量与浓度推进反应。'
   if (Object.keys(v.reacted).length) return '已反应的物质与生成物保留在容器中，可继续操作。'
   const ids = v.contents.filter(p=>p.id!=='H2O' && substanceMap[p.id].category!=='indicator')
-  if (ids.every(p=>p.id==='NaCl' || p.id==='SiO2')) return '物理分离体系：可加水溶解、过滤、蒸发与结晶。'
+  if (ids.length && ids.every(p=>p.id==='NaCl' || p.id==='SiO2')) return '物理分离体系：可加水溶解、过滤、蒸发与结晶。'
   if (v.contents.some(p=>substanceMap[p.id].category==='indicator') && getPH(v)!==null) return '指示剂随当前 pH 显色；这是酸碱平衡示意，不是生成新物质。'
   if (ids.length>1) return '暂不支持该试剂组合，未推测化学方程式或生成物。'
   if (ids.length===1 && !substanceMap[ids[0].id].reactions.length) return '已收录此物质资料；相关反应暂不支持。'
@@ -87,11 +87,15 @@ function integrate(sim: Simulation, dt: number) {
         changeAmount(v,t.id,t.phase,-used)
       }
       for (const t of rule.products) changeAmount(v,t.id,t.phase,dx*t.coefficient)
+      const waterChange = rule.products.filter(t=>t.id==='H2O'&&t.phase==='l').reduce((n,t)=>n+t.coefficient,0)-rule.reactants.filter(t=>t.id==='H2O'&&t.phase==='l').reduce((n,t)=>n+t.coefficient,0)
+      v.volumeMl=Math.max(0,v.volumeMl+waterChange*dx/55.5)
       if (rule.visual==='neutralization' && rule.id!=='copper-oxide-acid') {
         const heat = dx*(rule.id==='quicklime'?64:57) // J/mmol
         v.temperature += heat/(Math.max(5,v.volumeMl)*4.18)
       }
       v.reacted[rule.id]=(v.reacted[rule.id]??0)+dx
+      v.reactionStarted??={}
+      v.reactionStarted[rule.id]??=sim.time
       const total=v.reacted[rule.id]+Math.max(0,limited-dx)
       activities.push({vesselId:v.id,reactionId:rule.id,extent:v.reacted[rule.id],rate:dx/dt,progress:v.reacted[rule.id]/Math.max(total,EPS)})
     }
@@ -100,7 +104,7 @@ function integrate(sim: Simulation, dt: number) {
     const waterMl=amount(v,'H2O','l')/55.5
     if (waterMl>EPS) {
       for (const p of [...v.contents]) {
-        if (p.phase!=='s' || !substanceMap[p.id].soluble || ['MnO2','Ca(OH)2'].includes(p.id)) continue
+        if (p.phase!=='s' || p.id!=='NaCl') continue
         const maxDissolved = p.id==='NaCl' ? waterMl*(0.36+0.00015*(v.temperature-25))/substanceMap.NaCl.molarMass*1000 : Infinity
         const dx=Math.min(p.mmol,Math.max(0,maxDissolved-amount(v,p.id,'aq')),(v.stirring?1.8:0.55)*dt)
         if(dx>0){changeAmount(v,p.id,'s',-dx);changeAmount(v,p.id,'aq',dx)}
@@ -130,7 +134,7 @@ function integrate(sim: Simulation, dt: number) {
         const captured=Math.min(moved,Math.max(0,capacity-existing))
         changeAmount(receiver,p.id,'g',captured)
         sim.escaped[p.id]=(sim.escaped[p.id]??0)+moved-captured
-      } else if(!v.stoppered || sim.environment==='air') sim.escaped[p.id]=(sim.escaped[p.id]??0)+moved
+      } else if(!v.stoppered) sim.escaped[p.id]=(sim.escaped[p.id]??0)+moved
       else changeAmount(v,p.id,'g',moved)
     }
   }
