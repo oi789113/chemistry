@@ -1,0 +1,75 @@
+import type { Category, Phase, Substance } from './types'
+import { molarMass, parseFormula } from './formula'
+
+type Row = [string, string, Category, Phase, string, string, string, string, string, string[], boolean?, string?]
+// [formula, name, category, phase, color, appearance, properties, conditions, safety, rule IDs, soluble, solution color]
+const rows: Row[] = [
+  ['O2','氧气','element','g','#c8e8ef','无色气体','支持燃烧，具有氧化性','加热分解含氧化合物可制取','强助燃，远离油脂与火源',['peroxide','permanganate','magnesium','chlorate']],
+  ['H2','氢气','element','g','#e1e9f5','无色气体','可燃，有还原性','锌与稀酸反应制取','易燃，与空气混合有爆炸危险',['zinc-acid']],
+  ['N2','氮气','element','g','#e1e6ed','无色气体','常温化学性质较稳定','高温、高压、催化剂下可合成氨（未模拟）','高浓度可致缺氧',[]],
+  ['Cl2','氯气','element','g','#c5d55c','黄绿色气体','强氧化性，与水反应','相关反应尚未实现','有毒、强刺激性，仅作资料展示',[]],
+  ['C','碳','element','s','#454a4e','黑色固体','可燃，还原性','燃烧与还原反应尚未实现','粉尘避免吸入',[]],
+  ['S','硫','element','s','#e4c744','黄色固体','可燃，与金属反应','燃烧反应尚未实现','燃烧会产生刺激性气体',[]],
+  ['P','红磷','element','s','#ba634d','暗红色固体','可燃，形成磷的氧化物','燃烧反应尚未实现','远离火源，勿吸入粉尘',[]],
+  ['Fe','铁','element','s','#7b858a','银灰色固体','可与酸、硫酸铜溶液反应','硫酸铜水溶液、常温','粉末远离明火',['iron-copper']],
+  ['Cu','铜','element','s','#b56d47','紫红色固体','可导电，能被氧化','铁置换硫酸铜的生成物','铜盐不可入口',['iron-copper']],
+  ['Zn','锌','element','s','#9ba7b0','银灰色固体','与稀酸反应产生氢气','稀硫酸、常温','酸反应产生可燃气体',['zinc-acid']],
+  ['Mg','镁','element','s','#cbd3da','银白色金属条','燃烧发出耀眼白光','点燃、氧气或空气','强光勿直视，金属火灾勿用水',['magnesium']],
+  ['Al','铝','element','s','#b9c3cc','银白色固体','表面形成致密氧化膜','酸碱反应尚未实现','粉末可燃',[]],
+  ['Na','钠','element','s','#cbd2d8','银白色固体','与水剧烈反应','相关反应尚未实现','遇水易燃，不得实际自行操作',[]],
+  ['H2O','水','oxide','l','#bbdfeb','无色液体','常用溶剂，能够参与部分反应','蒸发和溶解模型以水为溶剂','加热时防烫伤',['peroxide','neutralization','lime-water'],true],
+  ['CO2','二氧化碳','oxide','g','#d3e3e4','无色气体','使澄清石灰水变浑浊','碳酸钙与稀盐酸制取','高浓度可致窒息',['carbonate-acid','lime-water']],
+  ['CO','一氧化碳','oxide','g','#d0d9e0','无色气体','可燃，有还原性','还原反应尚未实现','剧毒气体，仅作资料展示',[]],
+  ['MnO2','二氧化锰','catalyst','s','#42474b','黑色粉末','催化过氧化氢分解，自身不被消耗','过氧化氢溶液、常温','避免吸入粉尘',['peroxide','permanganate','chlorate']],
+  ['CuO','氧化铜','oxide','s','#343e43','黑色固体','碱性氧化物，与酸反应','稀盐酸','粉尘有害',['copper-oxide-acid']],
+  ['Fe2O3','氧化铁','oxide','s','#a75b40','红棕色固体','碱性氧化物，可被还原','相关反应尚未实现','避免吸入粉尘',[]],
+  ['CaO','氧化钙','oxide','s','#e8e4d8','白色固体','与水反应，明显放热','加入水','强腐蚀性，防飞溅',['quicklime']],
+  ['SO2','二氧化硫','oxide','g','#d1dfd6','无色刺激性气体','酸性氧化物，有漂白性','相关反应尚未实现','有毒、刺激呼吸道',[]],
+  ['H2O2','过氧化氢','oxide','aq','#bbdfeb','无色溶液','可分解生成水和氧气','MnO₂ 催化；升温加快','氧化性，浓溶液腐蚀皮肤',['peroxide'],true],
+  ['HCl','盐酸','acid','aq','#c1e2e5','无色溶液','强酸，与碱、碳酸盐和部分金属反应','稀溶液、常温','腐蚀性，避免吸入酸雾',['carbonate-acid','neutralization','copper-oxide-acid','soda-acid','baking-acid'],true],
+  ['H2SO4','硫酸','acid','aq','#c6e3e7','无色溶液','强酸，稀溶液可与活泼金属反应','本模型仅支持稀硫酸','强腐蚀性，稀释时酸入水',['zinc-acid','sulfate-neutralization','barium-sulfate'],true],
+  ['HNO3','硝酸','acid','aq','#c6e3e7','无色溶液','强酸、强氧化性','金属反应未实现，不推测产物','强腐蚀性、氧化性',[],true],
+  ['CH3COOH','乙酸','organic','aq','#d4e8dc','无色液体 / 溶液','弱酸，是醋的主要酸性成分','弱酸平衡尚未实现','浓乙酸有腐蚀性',[],true],
+  ['NaOH','氢氧化钠','base','aq','#bce2dc','无色溶液 / 白色固体','强碱，可发生中和和沉淀反应','水溶液、常温','强腐蚀性，避免皮肤接触',['copper-precipitate','neutralization','sulfate-neutralization','iron-precipitate'],true],
+  ['KOH','氢氧化钾','base','aq','#c4e6dc','无色溶液 / 白色固体','强碱，吸湿性强','相关中和反应尚未实现','强腐蚀性',[],true],
+  ['Ca(OH)2','氢氧化钙','base','aq','#d8e8e3','澄清石灰水 / 白色粉末','碱性，检验二氧化碳','少量 CO₂ 通入石灰水；过量体系不模拟','有腐蚀性',['lime-water'],true],
+  ['Ba(OH)2','氢氧化钡','base','aq','#d2e7e1','无色溶液','强碱，可形成硫酸钡沉淀','相关反应尚未实现','有毒、腐蚀性',[],true],
+  ['KMnO4','高锰酸钾','salt','s','#6f4289','紫黑色晶体；溶液紫色','加热分解产生氧气','约 200 ℃ 以上加热','强氧化剂，远离有机物',['permanganate'],true,'#925bb3'],
+  ['KClO3','氯酸钾','salt','s','#e5e4df','白色晶体','加热可分解产生氧气','MnO₂ 催化、加热到约 250 ℃','强氧化剂，禁止与可燃物混合',['chlorate'],true],
+  ['CuSO4','硫酸铜','salt','aq','#429bcb','蓝色溶液；无水盐白色','与碱形成蓝色沉淀，与铁置换','水溶液、常温','有害，勿入口、勿排入自然水体',['copper-precipitate','iron-copper'],true,'#329bce'],
+  ['NaCl','氯化钠','salt','s','#eeece3','白色晶体；溶液无色','易溶于水，可蒸发结晶','25 ℃ 饱和度近似 0.36 g / mL 水','实验试剂不可食用',['neutralization','carbonate-acid','soda-acid','baking-acid','silver-chloride'],true],
+  ['Na2CO3','碳酸钠','salt','aq','#cddfe2','白色固体 / 无色溶液','与酸反应生成二氧化碳','稀盐酸、常温','碱性，避免接触眼睛',['soda-acid'],true],
+  ['NaHCO3','碳酸氢钠','salt','s','#e9e6de','白色固体','与酸产生二氧化碳','稀盐酸、常温','避免粉尘吸入',['baking-acid'],true],
+  ['CaCO3','碳酸钙','salt','s','#dfddce','白色块状固体','难溶于水，遇稀酸产生二氧化碳','稀盐酸、常温','避免吸入粉尘',['carbonate-acid','lime-water']],
+  ['AgNO3','硝酸银','salt','aq','#dde8eb','无色溶液','与氯离子形成白色沉淀','NaCl 水溶液','腐蚀性，会使皮肤染黑',['silver-chloride'],true],
+  ['FeCl3','氯化铁','salt','aq','#caa352','棕黄色溶液','与碱生成红褐色沉淀','NaOH 水溶液','腐蚀性，避免皮肤接触',['iron-precipitate'],true,'#c5a655'],
+  ['FeSO4','硫酸亚铁','salt','aq','#96b996','浅绿色溶液','易被空气氧化','铁与硫酸铜置换生成','避免入口',['iron-copper'],true,'#9ab994'],
+  ['BaCl2','氯化钡','salt','aq','#dde7e3','无色溶液','与硫酸根形成白色沉淀','稀硫酸或可溶性硫酸盐','可溶性钡盐有毒',['barium-sulfate'],true],
+  ['CH4','甲烷','organic','g','#d5e3df','无色气体','可燃，是天然气主要成分','燃烧反应尚未实现','易燃，与空气混合有爆炸危险',[]],
+  ['C2H5OH','乙醇','organic','l','#c6e5df','无色液体','可燃，与水互溶','酒精灯燃料由仪器抽象表示','易燃，远离火源',[],true],
+  ['C2H4','乙烯','organic','g','#cedfd7','无色气体','含碳碳双键，易发生加成','相关反应尚未实现','易燃气体',[]],
+  ['C2H2','乙炔','organic','g','#cdded4','无色气体','含碳碳三键，可燃','相关反应尚未实现','易燃、易爆',[]],
+  ['C6H12O6','葡萄糖','organic','s','#e8e1cf','白色晶体','有还原性，可溶于水','相关反应尚未实现','试剂不可食用',[],true],
+  ['C20H14O4','酚酞','indicator','aq','#ecd1dd','无色指示剂溶液','pH 约 8.2–10.0 由无色变粉红','强酸强碱体系；超强碱褪色不模拟','溶剂可能易燃，不可入口',[],true],
+  ['C14H14N3NaO3S','甲基橙','indicator','aq','#e6ac58','橙黄色指示剂','pH 约 3.1–4.4 红色变黄色','强酸强碱体系','避免接触皮肤、不可入口',[],true],
+  ['K2MnO4','锰酸钾','salt','s','#557b52','绿色固体','高锰酸钾热分解的生成物','生成后性质不继续推算','氧化性，避免接触',['permanganate'],true,'#688c54'],
+  ['Cu(OH)2','氢氧化铜','base','s','#429bd2','蓝色絮状沉淀','难溶于水','Cu²⁺ 与 OH⁻ 结合','有害，避免接触',['copper-precipitate']],
+  ['Na2SO4','硫酸钠','salt','aq','#d1e5e4','无色溶液','可溶性盐','沉淀或中和反应的生成物','不可入口',['copper-precipitate','sulfate-neutralization'],true],
+  ['CaCl2','氯化钙','salt','aq','#d5e8e8','无色溶液','可溶性盐，吸湿','碳酸钙与盐酸反应生成','避免接触眼睛',['carbonate-acid'],true],
+  ['ZnSO4','硫酸锌','salt','aq','#d6e7e8','无色溶液','可溶性锌盐','锌与稀硫酸反应生成','有害，不可入口',['zinc-acid'],true],
+  ['MgO','氧化镁','oxide','s','#eeeae0','白色粉末','碱性氧化物','镁燃烧生成','避免吸入粉尘',['magnesium']],
+  ['SiO2','二氧化硅','oxide','s','#c8b897','浅色砂粒','难溶于水，可通过过滤分离','作为过滤实验的不溶性杂质','避免吸入细粉尘',[]],
+  ['AgCl','氯化银','salt','s','#f0eee3','白色沉淀','难溶于水，见光分解','Ag⁺ 与 Cl⁻ 结合','含银废物需专门处理',['silver-chloride']],
+  ['NaNO3','硝酸钠','salt','aq','#dae8e4','无色溶液','可溶性盐','硝酸银与氯化钠反应生成','氧化性',['silver-chloride'],true],
+  ['BaSO4','硫酸钡','salt','s','#ebe9df','白色沉淀','难溶于水与稀酸','Ba²⁺ 与 SO₄²⁻ 结合','实验试剂不可入口',['barium-sulfate']],
+  ['Fe(OH)3','氢氧化铁','base','s','#ae6645','红褐色沉淀','难溶于水','Fe³⁺ 与 OH⁻ 结合','避免接触粉尘',['iron-precipitate']],
+  ['KCl','氯化钾','salt','s','#e6e5dd','白色固体','可溶性钾盐','氯酸钾热分解生成','试剂不可食用',['chlorate'],true],
+  ['CuCl2','氯化铜','salt','aq','#5eaeae','蓝绿色溶液','可溶性铜盐','氧化铜与盐酸反应生成','有害，不可入口',['copper-oxide-acid'],true,'#5eaeae'],
+]
+export const substances: Substance[] = rows.map(([formula,name,category,phase,color,appearance,properties,conditions,safety,reactions,soluble,solutionColor]) => {
+  const atoms = parseFormula(formula)
+  return {id:formula,name,formula,category,phase,color,appearance,properties,conditions,safety,reactions,soluble,solutionColor,atoms,molarMass:molarMass(atoms)}
+})
+export const substanceMap = Object.fromEntries(substances.map(s => [s.id,s])) as Record<string, Substance>
+export const categoryNames: Record<Category,string> = {element:'单质',oxide:'氧化物',acid:'酸',base:'碱',salt:'盐',organic:'有机物',catalyst:'催化剂',indicator:'指示剂'}
+export const phaseNames: Record<Phase,string> = {s:'固体',l:'液体',g:'气体',aq:'溶液'}
