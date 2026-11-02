@@ -100,4 +100,4 @@ docs/           化学模型说明
 
 ## 后续部署
 
-本项目为静态前端，`npm run build` 后的 `dist/` 可托管到任意支持静态文件的平台。当前未注册站点、未配置公网部署、域名或正式服务器。
+本项目为静态前端，`npm run build` 后的 `dist/` 可托管到任意支持静态文件的平台。GitHub Actions 会将 main 分支构建并发布到 GitHub Pages。
